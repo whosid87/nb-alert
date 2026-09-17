@@ -1,0 +1,37 @@
+name: nb-stock-monitor
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # 10분마다 (GitHub 사정상 몇 분씩 지연될 수 있음)
+  workflow_dispatch:          # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nb-stock-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check stock
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        # 수동 실행(Run workflow)하면 텔레그램 테스트 메시지도 함께 보냄
+        run: python monitor.py ${{ github.event_name == 'workflow_dispatch' && '--test' || '' }}
+
+      - name: Save state
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add state.json
+          git diff --cached --quiet || (git commit -m "update stock state" && git push)
